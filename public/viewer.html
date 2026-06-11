@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Employee Live Screen</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 24px;
+      }
+      canvas {
+        width: 100%;
+        max-width: 1200px;
+        border: 1px solid #ccc;
+        border-radius: 12px;
+        display: block;
+      }
+      button {
+        padding: 8px 14px;
+        border-radius: 10px;
+        margin-left: 6px;
+      }
+      #controls {
+        margin-bottom: 12px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h2>Live Screen Viewer</h2>
+
+    <div id="controls">
+      <select id="agents"></select>
+      <button id="refresh">Refresh</button>
+      <button id="connect">Connect</button>
+      <button id="stop" disabled>Stop</button>
+    </div>
+
+    <p id="status">Status: idle</p>
+    <canvas id="remoteCanvas"></canvas>
+
+    <script>
+      /* ================= PARAM ================= */
+      const urlParams = new URLSearchParams(window.location.search);
+      const tenantId = urlParams.get("tenantId");
+
+      if (!tenantId) {
+        alert("❌ tenantId missing in URL");
+        throw new Error("tenantId required");
+      }
+
+      /* ================= SOCKET ================= */
+      const socket = io({
+        transports: ["websocket"],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        auth: {
+          tenantId:tenantId?.match(/^WN-\d+/)?.[0],
+          userId: "VIEWER-" + tenantId,
+          role:"viewer"
+        },
+      });
+
+      const agentsSelect = document.getElementById("agents");
+      const statusEl = document.getElementById("status");
+      const canvas = document.getElementById("remoteCanvas");
+      const ctx = canvas.getContext("2d");
+
+      const refreshBtn = document.getElementById("refresh");
+      const connectBtn = document.getElementById("connect");
+      const stopBtn = document.getElementById("stop");
+
+      let currentAgentId = null;
+      let receiving = false;
+      let socketReady = false;
+
+      /* ================= SOCKET DEBUG ================= */
+      socket.on("connect", () => {
+        socketReady = true;
+        console.log("✅ Viewer connected:", socket.id);
+        statusEl.textContent = "Status: connected";
+      });
+
+      socket.on("disconnect", (reason) => {
+        socketReady = false;
+        receiving = false;
+        console.warn("❌ Viewer disconnected:", reason);
+        statusEl.textContent = "Status: disconnected";
+        connectBtn.disabled = false;
+        stopBtn.disabled = true;
+      });
+
+      socket.on("connect_error", (err) => {
+        console.error("❌ Connect error:", err.message);
+        statusEl.textContent = "Socket connect error";
+      });
+
+      /* ================= LOAD AGENTS ================= */
+      async function loadAgents() {
+        try {
+          const res = await fetch("/server/workspace/commen/agents", {
+            headers: {
+              "Content-Type": "application/json",
+              "x-unique-id": tenantId,
+            },
+          });
+
+          const json = await res.json();
+          const agents = json?.data?.tenantAgents || [];
+
+          agentsSelect.innerHTML = "";
+          agents.forEach((a) => {
+            const opt = document.createElement("option");
+            opt.value = a;
+            opt.textContent = a;
+            agentsSelect.appendChild(opt);
+          });
+
+          statusEl.textContent = `Status: ${agents.length} agents online`;
+        } catch (e) {
+          console.error(e);
+          statusEl.textContent = "Status: failed to load agents";
+        }
+      }
+
+      refreshBtn.onclick = loadAgents;
+      window.onload = loadAgents;
+
+      /* ================= CONNECT STREAM ================= */
+      connectBtn.onclick = () => {
+        if (!socketReady) {
+          alert("Socket not connected yet");
+          return;
+        }
+
+        if (receiving) return;
+
+        const agentId = agentsSelect.value;
+        if (!agentId) {
+          alert("Select an agent");
+          return;
+        }
+
+        currentAgentId = agentId;
+        statusEl.textContent = `Requesting stream for ${agentId}...`;
+
+        socket.emit("viewer-join", { agentId });
+
+        connectBtn.disabled = true;
+      };
+
+      /* ================= STOP STREAM ================= */
+      stopBtn.onclick = () => stopstream();
+
+      function stopstream(){
+        if (!currentAgentId) return;
+
+        socket.emit("stop-stream", { agentId: currentAgentId });
+
+        receiving = false;
+        currentAgentId = null;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        stopBtn.disabled = true;
+        connectBtn.disabled = false;
+        statusEl.textContent = "Status: stopped";
+      }
+      /* ================= RECEIVE FRAME ================= */
+      socket.on("screen-frame", ({ agentId, frame }) => {
+        if (!currentAgentId || agentId !== currentAgentId) return;
+
+        const img = new Image();
+        img.onload = () => {
+          if (canvas.width !== img.width || canvas.height !== img.height) {
+            canvas.width = img.width;
+            canvas.height = img.height;
+          }
+          ctx.drawImage(img, 0, 0);
+        };
+
+        img.src = "data:image/jpeg;base64," + frame;
+
+        receiving = true;
+        stopBtn.disabled = false;
+        statusEl.textContent = `Receiving live screen from ${agentId}`;
+      });
+
+      socket.on("error", (err) => {
+        console.error("Socket error:", err);
+        statusEl.textContent = "Socket error";
+      });
+    </script>
+  </body>
+</html>

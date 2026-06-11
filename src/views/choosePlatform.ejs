@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+        <%= pageTitle %>
+    </title>
+
+    <style>
+        :root {
+            --bg-color: <%=backgroundColor %>;
+            --text-color: <%=textColor %>;
+            --heading-color: <%=headingColor %>;
+            --btn-color: <%=buttonColor %>;
+            --btn-hover: <%=buttonHover %>;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial;
+            text-align: center;
+            color: var(--text-color);
+            padding: 40px;
+            /* background color fallback */
+            background-color: var(--bg-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* background image container */
+        .page-wrap {
+            width: 100%;
+            max-width: 900px;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+            background-color: rgba(255, 255, 255, 0.85);
+            /* semi overlay so text readable on bg image */
+            position: relative;
+            z-index: 2;
+        }
+
+        /* full-bleed background image layer (optional) */
+        .bg-image-layer {
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+            background-position: center;
+            background-size: cover;
+            background-repeat: no-repeat;
+            filter: blur(2px) brightness(0.75);
+        }
+
+        h1 {
+            color: var(--heading-color);
+            margin: 0 0 12px;
+            font-size: 28px;
+        }
+
+        p {
+            margin: 0 0 22px;
+            color: var(--text-color);
+        }
+
+        .actions {
+            margin-top: 18px;
+        }
+
+        .btn {
+            display: inline-block;
+            background: var(--btn-color);
+            color: #fff;
+            border: none;
+            padding: 12px 26px;
+            margin: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            text-decoration: none;
+            transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+        }
+
+        .btn:hover {
+            background: var(--btn-hover);
+            transform: translateY(-2px);
+        }
+
+        /* smaller on mobile */
+        @media (max-width:480px) {
+            .page-wrap {
+                padding: 24px;
+                border-radius: 10px;
+            }
+
+            h1 {
+                font-size: 20px;
+            }
+
+            .btn {
+                padding: 10px 18px;
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- optional background image layer (render only if backgroundImage provided) -->
+    <% if (backgroundImage) { %>
+        <div class="bg-image-layer" style="background-image: url('<%= backgroundImage %>');"></div>
+        <% } %>
+
+            <div class="page-wrap">
+                <h1>
+                    <%= heading %>
+                </h1>
+                <p>
+                    <%= subText %>
+                </p>
+
+                <div class="actions">
+                    <a class="btn" href="javascript:void(0)" onclick="openApp()">Continue on App</a>
+                    <a class="btn" href="javascript:void(0)" onclick="openWeb()">Continue on Website</a>
+                </div>
+            </div>
+
+            <script>
+                const appScheme = "<%= appScheme %>";
+                const androidStore = "<%= androidStore %>";
+                const iosStore = "<%= iosStore %>";
+                const webLink = "<%= webLink %>";
+
+                function openApp() {
+                    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                    const isAndroid = /Android/i.test(navigator.userAgent);
+
+                    // attempt deep link
+                    window.location = appScheme;
+
+                    // fallback to store or web after short delay
+                    setTimeout(() => {
+                        if (isIOS) window.location = iosStore;
+                        else if (isAndroid) window.location = androidStore;
+                        else {
+                            alert("This link only works in the HRMS Mobile App.\nYou are on desktop, so you can continue on the web.");
+                            window.location = webLink;
+                        }
+                    }, 1400);
+                }
+
+                function openWeb() {
+                    window.location = webLink;
+                }
+            </script>
+</body>
+
+</html>

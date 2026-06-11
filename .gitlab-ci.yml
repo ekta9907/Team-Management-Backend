@@ -1,0 +1,21 @@
+Deploy Backend to Production:
+  stage: deploy
+
+  tags:
+    - backend
+
+  script:
+    # Ensure backend path is defined
+    - if [ -z "$backend" ]; then echo "Need to set backend path" && exit 1; fi
+
+    # Rsync excluding unnecessary files and syncing only backend build
+    - sudo rsync -rv "$CI_PROJECT_DIR"/ $backend --exclude 'health_check.html' --exclude '.git' --exclude '.gitlab-ci.yml' --exclude '.env' --delete
+    - sudo chown -R ubuntu:ubuntu $backend
+    - sed -i 's/1.4.5-lts.3/1.4.5-lts.1/' $backend/package.json
+    - cd $backend && npm install --omit=dev
+    - sudo pm2 restart app
+
+  only:
+    - master
+
+  when: manual
